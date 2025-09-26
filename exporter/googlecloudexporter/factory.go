@@ -7,7 +7,11 @@ package googlecloudexporter // import "github.com/open-telemetry/opentelemetry-c
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
+
+	"google.golang.org/api/option"
 
 	"github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/collector"
 	"go.opentelemetry.io/collector/component"
@@ -52,6 +56,31 @@ func createDefaultConfig() component.Config {
 	}
 }
 
+func createClientOptions(cfg *Config) ([]option.ClientOption, error) {
+	var copts []option.ClientOption
+
+	// Validate and use the ServiceAuthKey
+	if cfg.ServiceAuthKey != "" {
+		serviceKeyBytes := []byte(cfg.ServiceAuthKey)
+
+		// Validate the JSON format of the key
+		var temp map[string]interface{}
+		if err := json.Unmarshal(serviceKeyBytes, &temp); err != nil {
+			return nil, fmt.Errorf("invalid service_auth_key format: %w", err)
+		}
+
+		// Create credentials using the service key
+		copts = append(copts, option.WithCredentialsJSON(serviceKeyBytes))
+	} else {
+		return nil, fmt.Errorf("service_auth_key must be provided")
+	}
+
+	// Add required scopes
+	copts = append(copts, option.WithScopes("https://www.googleapis.com/auth/cloud-platform"))
+
+	return copts, nil
+}
+
 func createLogsExporter(
 	ctx context.Context,
 	params exporter.Settings,
@@ -61,7 +90,16 @@ func createLogsExporter(
 	if customMonitoredResourcesGate.IsEnabled() {
 		eCfg.LogConfig.MapMonitoredResource = resourcemapping.CustomLoggingMonitoredResourceMapping
 	}
-	logsExporter, err := collector.NewGoogleCloudLogsExporter(ctx, eCfg.Config, params, eCfg.TimeoutSettings.Timeout)
+
+	var copts []option.ClientOption
+	if eCfg.ServiceAuthKey != "" {
+		var err error
+		copts, err = createClientOptions(eCfg)
+		if err != nil {
+			return nil, err
+		}
+	}
+	logsExporter, err := collector.NewGoogleCloudLogsExporter(ctx, eCfg.Config, params, eCfg.TimeoutSettings.Timeout, copts...)
 	if err != nil {
 		return nil, err
 	}

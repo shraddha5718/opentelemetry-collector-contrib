@@ -87,3 +87,41 @@ func TestCustomMonitoredResourceMapping(t *testing.T) {
 	expectedMetricsFuncPointer := reflect.ValueOf(resourcemapping.CustomLoggingMonitoredResourceMapping).Pointer()
 	assert.Equal(t, expectedMetricsFuncPointer, actualMetricsFuncPointer)
 }
+
+func TestCreateLogsExporterWithServiceAuthKey(t *testing.T) {
+	ctx := context.Background()
+	factory := NewFactory()
+	cfg := factory.CreateDefaultConfig()
+	eCfg := cfg.(*Config)
+	eCfg.ProjectID = "test-project"
+
+	// Test that our conditional logic works by testing createClientOptions directly
+	// Test with valid JSON (but incomplete for actual use)
+	eCfg.ServiceAuthKey = `{"type": "service_account", "project_id": "test-project"}`
+	copts, err := createClientOptions(ctx, eCfg)
+	assert.NoError(t, err)
+	assert.NotNil(t, copts)
+	assert.Len(t, copts, 2) // Should have credentials and scopes
+
+	// Test with empty ServiceAuthKey
+	eCfg.ServiceAuthKey = ""
+	copts2, err := createClientOptions(ctx, eCfg)
+	assert.Error(t, err)
+	assert.Nil(t, copts2)
+	assert.Contains(t, err.Error(), "service_auth_key must be provided")
+}
+
+func TestCreateLogsExporterWithInvalidServiceAuthKey(t *testing.T) {
+	ctx := context.Background()
+	factory := NewFactory()
+	cfg := factory.CreateDefaultConfig()
+	eCfg := cfg.(*Config)
+	eCfg.ProjectID = "test-project"
+
+	// Test with invalid JSON ServiceAuthKey
+	eCfg.ServiceAuthKey = `{"invalid": json}`
+	copts, err := createClientOptions(ctx, eCfg)
+	assert.Error(t, err)
+	assert.Nil(t, copts)
+	assert.Contains(t, err.Error(), "invalid service_auth_key format")
+}

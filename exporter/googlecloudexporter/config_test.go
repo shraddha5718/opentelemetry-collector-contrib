@@ -80,3 +80,30 @@ func sanitize(cfg *Config) *Config {
 	cfg.MetricConfig.GetMetricName = nil
 	return cfg
 }
+
+func TestConfigValidateServiceAuthKey(t *testing.T) {
+	cfg := &Config{
+		Config: collector.DefaultConfig(),
+	}
+
+	// Test with empty ServiceAuthKey - should fail validation
+	err := cfg.Validate()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "service_auth_key must be provided")
+
+	// Test with ServiceAuthKey provided - should pass validation
+	cfg.ServiceAuthKey = "test-auth-key"
+	err = cfg.Validate()
+	assert.NoError(t, err)
+}
+
+func TestConfigValidateWithValidConfig(t *testing.T) {
+	cfg := &Config{
+		Config:         collector.DefaultConfig(),
+		ServiceAuthKey: "test-auth-key",
+	}
+
+	// Test that validation passes with valid config
+	err := cfg.Validate()
+	assert.NoError(t, err)
+}
